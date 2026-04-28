@@ -18,7 +18,7 @@ const handleAuthOperations = async (req, res) => {
       return res.status(405).json({ message: "Method not allowed for auth endpoint. Use POST." });
     }
 
-    if (action === "register") {
+    if (action === "register" || action === "create_author") {
       const { name, email, password, role } = req.body;
       const existingUser = await User.findOne({ email });
       if (existingUser) return res.status(400).json({ message: "Email already exists" });
@@ -36,7 +36,7 @@ const handleAuthOperations = async (req, res) => {
       return res.status(201).json({ success: true, message: "User registered successfully", user: { id: user._id, name: user.name, role: user.role } });
     }
 
-    if (action === "login") {
+    if (action === "login" || action === "login_author") {
       const { email, password } = req.body;
       const user = await User.findOne({ email });
       if (!user) return res.status(400).json({ message: "Invalid credentials" });

@@ -21,6 +21,45 @@ const handleBlogOperations = async (req, res) => {
 
     // ================= GET REQUESTS (Read Operations) =================
     if (method === "GET") {
+      if (action === "get_blogs_by_author") {
+        const authorId = req.query.authorId || (user ? user.id : null);
+        if (!authorId) return res.status(400).json({ message: "Author ID required" });
+        const blogs = await Blog.find({ author: authorId, ...readFilter })
+          .populate("author", "name")
+          .populate("category", "name");
+        return res.status(200).json({ success: true, count: blogs.length, data: blogs });
+      }
+
+      if (action === "search_blog_by_name") {
+        const title = req.query.name || req.query.title;
+        if (!title) return res.status(400).json({ message: "Search name/title required" });
+        const blogs = await Blog.find({ title: { $regex: title, $options: "i" }, ...readFilter })
+          .populate("author", "name")
+          .populate("category", "name");
+        return res.status(200).json({ success: true, count: blogs.length, data: blogs });
+      }
+
+      if (action === "view_comment") {
+        if (!id) return res.status(400).json({ message: "Blog ID required" });
+        const blog = await Blog.findOne({ _id: id, ...readFilter }).populate("comments.user", "name email");
+        if (!blog) return res.status(404).json({ message: "Blog not found" });
+        return res.status(200).json({ success: true, count: blog.comments.length, data: blog.comments });
+      }
+
+      if (action === "view_like") {
+        if (!id) return res.status(400).json({ message: "Blog ID required" });
+        const blog = await Blog.findOne({ _id: id, ...readFilter }).populate("likes", "name email");
+        if (!blog) return res.status(404).json({ message: "Blog not found" });
+        return res.status(200).json({ success: true, count: blog.likes.length, data: blog.likes });
+      }
+
+      if (action === "published_blogs") {
+        const blogs = await Blog.find({ status: "published" })
+          .populate("author", "name")
+          .populate("category", "name");
+        return res.status(200).json({ success: true, count: blogs.length, data: blogs });
+      }
+
       if (id) {
         const blog = await Blog.findOne({ _id: id, ...readFilter })
           .populate("author", "name email")
@@ -41,19 +80,19 @@ const handleBlogOperations = async (req, res) => {
       if (!user) return res.status(403).json({ message: "Authentication required" });
 
       // Action: Like
-      if (action === "like") {
+      if (action === "like" || action === "add_like") {
          if (!id) return res.status(400).json({message: "Blog ID required in query for like"});
          const blog = await Blog.findById(id);
          if (!blog) return res.status(404).json({ message: "Blog not found" });
          
-         if (blog.likes.includes(user.id)) return res.status(400).json({ message: "Already liked" });
+         if (blog.likes.some(likeId => likeId.toString() === user.id)) return res.status(400).json({ message: "Already liked" });
          blog.likes.push(user.id);
          await blog.save();
          return res.status(200).json({ success: true, message: "Blog liked" });
       }
 
       // Action: Unlike
-      if (action === "unlike") {
+      if (action === "unlike" || action === "remove_like") {
          if (!id) return res.status(400).json({message: "Blog ID required"});
          const blog = await Blog.findById(id);
          if (!blog) return res.status(404).json({ message: "Blog not found" });
@@ -64,7 +103,7 @@ const handleBlogOperations = async (req, res) => {
       }
 
       // Action: Comment
-      if (action === "comment") {
+      if (action === "comment" || action === "add_comment") {
          if (!id) return res.status(400).json({message: "Blog ID required"});
          const { text } = req.body;
          if (!text) return res.status(400).json({message: "Comment text required"});
@@ -109,7 +148,7 @@ const handleBlogOperations = async (req, res) => {
       }
 
       // Action: Approve Blog (Admin only)
-      if (action === "approve") {
+      if (action === "approve" || action === "approve_blog") {
           if (user.role !== "Admin") return res.status(403).json({ message: "Only Admins can approve blogs" });
           blog.status = "published";
           await blog.save();
